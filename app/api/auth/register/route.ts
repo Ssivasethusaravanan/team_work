@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createUser, getUserByEmail, hashPassword } from "@/lib/db";
-import { encrypt } from "@/lib/auth";
+import { createUser, getUserByEmail, hashPassword } from "../../../../lib/db";
+import { encrypt } from "../../../../lib/auth";
 import { cookies } from "next/headers";
 
 export async function POST(request: NextRequest) {

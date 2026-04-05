@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { encrypt } from "@/lib/auth";
-import { getUserByEmail, verifyPassword } from "@/lib/db";
+import { encrypt } from "../../../../lib/auth";
+import { getUserByEmail, verifyPassword } from "../../../../lib/db";
 
 export async function POST(request: NextRequest) {
   try {
