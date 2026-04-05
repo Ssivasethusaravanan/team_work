@@ -35,6 +35,13 @@ export async function POST(request: NextRequest) {
       role: "User"
     });
 
+    if (!user) {
+      return NextResponse.json(
+        { message: "Failed to create user" },
+        { status: 500 }
+      );
+    }
+
     // Create session
     const expires = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
     const session = await encrypt({ 
