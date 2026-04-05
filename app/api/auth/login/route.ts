@@ -5,7 +5,7 @@ import { getUserByEmail, verifyPassword } from "../../../../lib/db";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json() as any;
     const { email, password } = body;
 
     // Fetch user from simulated DB
