@@ -6,7 +6,8 @@ This guide provides the necessary steps to deploy your application to **Render**
 
 Before deploying, ensure you have a secure **JWT_SECRET**. You can generate one in your terminal:
 ```bash
-openssl rand -base64 32
+# Using Node.js (Cross-platform)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
 ### Required Variables:
@@ -24,6 +25,11 @@ openssl rand -base64 32
    - **Start Command**: `npm run start`
 3. **Add Environment Variables**: Go to the "Env Vars" tab in Render and add the variables listed above.
 4. **Health Check**: Render will automatically monitor your app. It should be live within minutes.
+
+### Troubleshooting Render Builds
+- **Module Not Found**: Ensure `baseUrl: "."` is present in your `tsconfig.json`.
+- **Missing Tailwind**: Always keep `tailwindcss`, `postcss`, and `autoprefixer` in the `dependencies` section (not devDependencies) if your build fails on Render.
+- **Node Version**: If you see errors related to Node features, specify your version in `package.json` under the `engines` field.
 
 > [!TIP]
 > Use Render if you plan to eventually integrate a full PostgreSQL database (using Prisma), as it supports persistent Node.js services perfectly.
