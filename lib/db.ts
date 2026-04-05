@@ -1,3 +1,5 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
 const encoder = new TextEncoder();
 
 export interface User {
@@ -6,16 +8,22 @@ export interface User {
   name: string;
   passwordHash: string;
   tenantId: string;
-  role: string;
+  role: string | null;
   createdAt: string;
 }
 
-// Global state workaround for hot reloading
-const globalUsers = global as any;
-if (!globalUsers.users) {
-  globalUsers.users = new Map<string, User>();
+/**
+ * Access the Cloudflare D1 Database binding.
+ */
+async function getDb() {
+  try {
+    const { env } = await getCloudflareContext();
+    return env.DB;
+  } catch (e) {
+    console.error("Failed to get Cloudflare context. Ensure you are running in a supported environment.", e);
+    return null;
+  }
 }
-const users: Map<string, User> = globalUsers.users;
 
 // --- Security Helpers ---
 
@@ -84,30 +92,55 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   return toHex(derivedBits) === hashHex;
 }
 
-// --- Database Operations ---
+// --- Database Operations (D1 Powered) ---
 
 export async function getUserByEmail(email: string): Promise<User | null> {
-  // If no users exist, seed the default admin
-  if (users.size === 0 && email === "user@example.com") {
-    const passwordHash = await hashPassword("password123");
-    await createUser({
-      email: "user@example.com",
-      name: "Saravanan",
-      passwordHash,
-      tenantId: "100",
-      role: "Enterprise Admin"
-    });
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const result = await db
+      .prepare("SELECT * FROM users WHERE email = ?")
+      .bind(email)
+      .first<User>();
+    
+    return result || null;
+  } catch (e) {
+    console.error("D1 Query Error (getUserByEmail):", e);
+    return null;
   }
-  return users.get(email) || null;
 }
 
-export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<User> {
-  const id = Math.random().toString(36).substring(7);
+export async function createUser(data: Omit<User, "id" | "createdAt">): Promise<User | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const id = crypto.randomUUID();
   const newUser: User = {
     ...data,
     id,
     createdAt: new Date().toISOString()
   };
-  users.set(newUser.email, newUser);
-  return newUser;
+
+  try {
+    await db
+      .prepare(
+        "INSERT INTO users (id, name, email, passwordHash, tenantId, role, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      )
+      .bind(
+        newUser.id,
+        newUser.name,
+        newUser.email,
+        newUser.passwordHash,
+        newUser.tenantId,
+        newUser.role || "User",
+        newUser.createdAt
+      )
+      .run();
+    
+    return newUser;
+  } catch (e) {
+    console.error("D1 Query Error (createUser):", e);
+    return null;
+  }
 }

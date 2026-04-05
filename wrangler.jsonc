@@ -1,0 +1,16 @@
+{
+  "name": "teamwork",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "teamwork-db",
+      "database_id": "df8d35e0-8261-403b-90ce-b48e90d0d4f8"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
