@@ -13,12 +13,19 @@ export interface User {
 }
 
 /**
+ * Define the Cloudflare environment interface for type safety.
+ */
+interface CloudflareEnv {
+  DB: D1Database;
+}
+
+/**
  * Access the Cloudflare D1 Database binding.
  */
 async function getDb() {
   try {
     const { env } = await getCloudflareContext();
-    return env.DB;
+    return (env as unknown as CloudflareEnv).DB;
   } catch (e) {
     console.error("Failed to get Cloudflare context. Ensure you are running in a supported environment.", e);
     return null;
