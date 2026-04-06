@@ -41,9 +41,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 1. **Prerequisites**: Ensure your project is "Edge compatible" (this project is already optimized using Web Crypto).
 2. **Connect Repository**: Go to the Cloudflare Dashboard -> Workers & Pages -> Create application -> Connect to GitHub.
 3. **Build settings**:
-   - **Framework preset**: `Next.js`
-   - **Build command**: `npx @cloudflare/next-on-pages` (or standard `next build`)
-   - **Output directory**: `.next`
+   - **Build command**: `npm run build:cloudflare`
+   - **Output directory**: `.open-next`
 4. **Environment Variables**: Add your `JWT_SECRET` in the Cloudflare Page settings.
 
 > [!IMPORTANT]
