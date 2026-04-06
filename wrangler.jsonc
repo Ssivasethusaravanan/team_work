@@ -10,6 +10,10 @@
       "database_id": "df8d35e0-8261-403b-90ce-b48e90d0d4f8"
     }
   ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
   "observability": {
     "enabled": true
   }
