@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("user@example.com");
@@ -16,22 +17,17 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json() as any;
-
-      if (response.ok) {
+      const data = await api.post("auth/login", { email, password });
+      
+      if (data && !data.error) {
         router.push("/dashboard");
         router.refresh();
       } else {
         alert("Invalid credentials check (user@example.com / password123)");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Login Error:", err);
+      alert("Encryption connection failed or server error");
     } finally {
       setIsLoading(false);
     }

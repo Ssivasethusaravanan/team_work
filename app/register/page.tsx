@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Lock, Mail, ArrowRight, User, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -19,21 +20,16 @@ export default function RegisterPage() {
     setError("");
     
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-
-      const data = await response.json() as any;
-
-      if (response.ok) {
+      const data = await api.post("auth/register", { name, email, password });
+      
+      if (data && !data.error) {
         router.push("/dashboard");
         router.refresh();
       } else {
-        setError(data.message || "Registration failed. Please try again.");
+        setError(data?.error || "Registration failed. Please try again.");
       }
     } catch (err) {
+      console.error("Registration Error:", err);
       setError("A network error occurred. Please try again.");
     } finally {
       setIsLoading(false);
