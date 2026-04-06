@@ -41,6 +41,15 @@ export async function POST(request: NextRequest) {
         result = { success: true };
         break;
 
+      case "user/me":
+        const session = await AuthService.getSession();
+        if (session && session.user) {
+          result = { user: session.user };
+        } else {
+          return new NextResponse(await sc_encrypt({ error: "Session not found" }), { status: 401 });
+        }
+        break;
+
       default:
         return new NextResponse(await sc_encrypt({ error: "Action not permitted" }), { status: 404 });
     }

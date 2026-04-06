@@ -11,6 +11,7 @@ export interface User {
   tenantId: string;
   role: string | null;
   createdAt?: string;
+  lastLogin?: string;
 }
 
 /**
@@ -76,6 +77,26 @@ export async function insertUser(userData: User): Promise<boolean> {
     return true;
   } catch (e) {
     console.error("D1 Repository Error (insertUser):", e);
+    return false;
+  }
+}
+
+/**
+ * UPDATE LAST LOGIN: Update the user's last login timestamp
+ */
+export async function updateLastLogin(id: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    const timestamp = new Date().toISOString();
+    await db
+      .prepare("UPDATE users SET lastLogin = ? WHERE id = ?")
+      .bind(timestamp, id)
+      .run();
+    return true;
+  } catch (e) {
+    console.error("D1 Repository Error (updateLastLogin):", e);
     return false;
   }
 }

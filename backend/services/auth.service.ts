@@ -122,6 +122,10 @@ export class AuthService {
    * SESSION MANAGEMENT (HTTP-ONLY COOKIES)
    */
   static async setSession(user: User) {
+    // Persist last login to database
+    const { updateLastLogin } = await import("../db/d1.repository");
+    await updateLastLogin(user.id);
+
     const expires = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
     const session = await this.encrypt({ 
       user: {

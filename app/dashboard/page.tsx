@@ -1,5 +1,8 @@
-import { AuthService } from "../../backend/services/auth.service";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import {
   Plus,
   Search,
@@ -12,17 +15,54 @@ import {
   TrendingUp,
   Receipt,
   Users2,
-  CircleDollarSign
+  CircleDollarSign,
+  Loader2
 } from "lucide-react";
 
-export default async function DashboardPage() {
-  const session = await AuthService.getSession();
+export default function DashboardPage() {
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
-  if (!session) {
-    redirect("/login");
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await api.post("user/me", {});
+        if (data && data.user) {
+          setUser(data.user);
+        } else {
+          router.push("/login");
+        }
+      } catch (err) {
+        console.error("Profile Fetch Error:", err);
+        router.push("/login");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [router]);
+
+  const handleLogout = async () => {
+    try {
+      await api.post("auth/logout", {});
+      router.push("/login");
+      router.refresh();
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+      </div>
+    );
   }
 
-  const { user } = session;
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col md:flex-row">
@@ -53,12 +93,13 @@ export default async function DashboardPage() {
         </nav>
 
         <div className="px-2">
-          <form action="/api/auth/logout" method="POST">
-            <button className="flex items-center gap-3 text-neutral-400 hover:text-red-400 transition-colors w-full py-2">
-              <LogOut size={20} />
-              <span className="hidden lg:block text-sm font-medium">Log Out</span>
-            </button>
-          </form>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-3 text-neutral-400 hover:text-red-400 transition-colors w-full py-2"
+          >
+            <LogOut size={20} />
+            <span className="hidden lg:block text-sm font-medium">Log Out</span>
+          </button>
         </div>
       </aside>
 
@@ -109,7 +150,7 @@ export default async function DashboardPage() {
                 </h1>
                 <p className="text-neutral-400 mt-2 max-w-lg">
                   You are currently managing the <span className="text-white font-semibold">[{user.tenantId}]</span> workspace.
-                  Here&apos;s what changed since your last login.
+                  Your last activity secure trace: <span className="text-indigo-400 font-mono text-[10px]">{user.lastLogin || 'First Session'}</span>
                 </p>
               </div>
               <button className="bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-95">
@@ -148,7 +189,6 @@ export default async function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Section */}
             <section className="lg:col-span-2 glass rounded-3xl p-8 min-h-[300px]">
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-xl font-bold">Revenue Dynamics</h2>
@@ -163,7 +203,6 @@ export default async function DashboardPage() {
               </div>
             </section>
 
-            {/* Side Section */}
             <section className="glass rounded-3xl p-8">
               <h2 className="text-xl font-bold mb-6">Recent Activity</h2>
               <div className="space-y-6">
