@@ -51,10 +51,21 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ---
 
-## 4. Moving to a Production Database
+## 4. Production Database (Cloudflare D1)
 
-Currently, this project uses a high-performance **simulated data layer** in `lib/db.ts`. 
-To transition to a real database (like **Supabase** or **PlanetScale**):
-1. Create a database on your provider of choice.
-2. Update `lib/db.ts` to use a real database driver (e.g., `PrismaClient`).
-3. The rest of the app (Login/Signup/Middleware) is already designed to work with any database layer.
+This project is powered by a permanent **Cloudflare D1 SQL Database**. 
+
+### Architecture:
+- **Frontend**: Standard Next.js Client components.
+- **Stealth BFF**: `/api/auth/` dispatchers that mask the backend.
+- **Core Backend**: Logic located in `backend/services/` and `backend/db/`.
+
+### Managing Your Data:
+You can manage your production users directly using Wrangler:
+```bash
+# View all registered users
+npx wrangler d1 execute teamwork-db --command="SELECT * FROM users" --remote
+```
+
+> [!TIP]
+> The **Stealth BFF** architecture ensures that your JWTs and Database access patterns are never exposed to the browser's DevTools.

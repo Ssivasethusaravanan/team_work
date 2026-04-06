@@ -1,4 +1,4 @@
-import { getSession } from "../../lib/auth";
+import { AuthService } from "../../backend/services/auth.service";
 import { redirect } from "next/navigation";
 import {
   Plus,
@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 export default async function DashboardPage() {
-  const session = await getSession();
+  const session = await AuthService.getSession();
 
   if (!session) {
     redirect("/login");

@@ -1,38 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { encrypt } from "../../../../lib/auth";
-import { getUserByEmail, verifyPassword } from "../../../../lib/db";
+import { AuthService } from "../../../../backend/services/auth.service";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as any;
     const { email, password } = body;
 
-    // Fetch user from simulated DB
-    const user = await getUserByEmail(email);
+    // Use Backend Service (Invisible to Client)
+    const user = await AuthService.login(email, password);
     
-    // Verify user exists and password is correct
-    if (user && (await verifyPassword(password, user.passwordHash))) {
-      const expires = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
-      const session = await encrypt({ 
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          tenantId: user.tenantId,
-          role: user.role
-        }, 
-        expires 
-      });
-
-      const cookieStore = await cookies();
-      cookieStore.set("session", session, {
-        expires,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-      });
+    if (user) {
+      await AuthService.setSession(user);
 
       return NextResponse.json({ 
         message: "Login successful", 
