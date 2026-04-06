@@ -15,7 +15,7 @@ async function getCryptoKey(): Promise<CryptoKey> {
   return await crypto.subtle.importKey(
     "raw",
     keyData,
-    { name: "AES-256-GCM" },
+    { name: "AES-GCM" },
     false,
     ["encrypt", "decrypt"]
   );
@@ -31,7 +31,7 @@ export async function sc_encrypt(payload: any): Promise<string> {
   const data = encoder.encode(JSON.stringify(payload));
 
   const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-256-GCM", iv },
+    { name: "AES-GCM", iv },
     key,
     data
   );
@@ -55,7 +55,7 @@ export async function sc_decrypt(input: string): Promise<any> {
   const encryptedData = new Uint8Array(atob(encryptedBase64).split("").map((c) => c.charCodeAt(0)));
 
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-256-GCM", iv },
+    { name: "AES-GCM", iv },
     key,
     encryptedData
   );
