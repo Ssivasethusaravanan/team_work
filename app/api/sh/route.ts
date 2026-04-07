@@ -68,6 +68,29 @@ export async function POST(request: NextRequest) {
         }
         break;
 
+      /**
+       * PASSKEY (WEBAUTHN) TARGETS
+       */
+      case "passkey/reg-options":
+        const regUser = (await AuthService.getSession())?.user;
+        if (!regUser) return new NextResponse(await sc_encrypt({ error: "Auth required" }, sessionKey), { status: 401 });
+        result = await AuthService.generatePasskeyRegistration(regUser);
+        break;
+
+      case "passkey/reg-verify":
+        const verifyUser = (await AuthService.getSession())?.user;
+        if (!verifyUser) return new NextResponse(await sc_encrypt({ error: "Auth required" }, sessionKey), { status: 401 });
+        result = await AuthService.verifyPasskeyRegistration(verifyUser, payload);
+        break;
+
+      case "passkey/auth-options":
+        result = await AuthService.generatePasskeyAuthentication(payload.email);
+        break;
+
+      case "passkey/auth-verify":
+        result = await AuthService.verifyPasskeyAuthentication(payload.email, payload.body);
+        break;
+
       default:
         const errBody = await sc_encrypt({ error: "Action not permitted" }, sessionKey);
         return new NextResponse(errBody, { status: 404 });

@@ -158,6 +158,168 @@ export class AuthService {
     (await cookies()).set("session", "", { expires: new Date(0) });
   }
 
+  /**
+   * WEB AUTH REGISTER 1: Generate Registration Options
+   */
+  static async generatePasskeyRegistration(user: User) {
+    const { 
+      generateRegistrationOptions 
+    } = await import("@simplewebauthn/server");
+    const { getAuthenticatorsByUserId } = await import("../db/d1.repository");
+
+    const authenticators = await getAuthenticatorsByUserId(user.id);
+
+    const options = await generateRegistrationOptions({
+      rpName: "ModelPro SaaS",
+      rpID: process.env.NEXT_PUBLIC_RP_ID || "localhost",
+      userID: user.id,
+      userName: user.email,
+      userDisplayName: user.name,
+      attestationType: "none",
+      excludeCredentials: authenticators.map(auth => ({
+        id: auth.credentialID,
+        type: "public-key",
+        transports: auth.transports ? JSON.parse(auth.transports) : undefined,
+      })),
+      authenticatorSelection: {
+        residentKey: "preferred",
+        userVerification: "preferred",
+        authenticatorAttachment: "platform",
+      },
+    });
+
+    // Store challenge in a short-lived cookie for verification
+    const cookieStore = await cookies();
+    cookieStore.set("registration-challenge", options.challenge, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 300, // 5 minutes
+    });
+
+    return options;
+  }
+
+  /**
+   * WEB AUTH REGISTER 2: Verify Registration Response
+   */
+  static async verifyPasskeyRegistration(user: User, body: any) {
+    const { 
+      verifyRegistrationResponse 
+    } = await import("@simplewebauthn/server");
+    const { saveAuthenticator } = await import("../db/d1.repository");
+    const cookieStore = await cookies();
+    const expectedChallenge = cookieStore.get("registration-challenge")?.value;
+
+    if (!expectedChallenge) throw new Error("Registration challenge expired");
+
+    const verification = await verifyRegistrationResponse({
+      response: body,
+      expectedChallenge,
+      expectedOrigin: [
+        "https://teamwork.sssspro.com",
+        "http://localhost:3000"
+      ],
+      expectedRPID: process.env.NEXT_PUBLIC_RP_ID || "localhost",
+    });
+
+    if (verification.verified && verification.registrationInfo) {
+      const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+
+      await saveAuthenticator({
+        credentialID: Buffer.from(credentialID).toString("base64"),
+        userId: user.id,
+        publicKey: Buffer.from(credentialPublicKey).toString("base64"),
+        counter,
+        fmt: verification.registrationInfo.fmt,
+      });
+
+      return { success: true };
+    }
+
+    return { success: false };
+  }
+
+  /**
+   * WEB AUTH AUTH 1: Generate Authentication Options
+   */
+  static async generatePasskeyAuthentication(email: string) {
+    const { 
+      generateAuthenticationOptions 
+    } = await import("@simplewebauthn/server");
+    const { getAuthenticatorsByUserId } = await import("../db/d1.repository");
+
+    const user = await getUserByEmail(email);
+    if (!user) throw new Error("User not found");
+
+    const authenticators = await getAuthenticatorsByUserId(user.id);
+
+    const options = await generateAuthenticationOptions({
+      rpID: process.env.NEXT_PUBLIC_RP_ID || "localhost",
+      allowCredentials: authenticators.map(auth => ({
+        id: auth.credentialID,
+        type: "public-key",
+        transports: auth.transports ? JSON.parse(auth.transports) : undefined,
+      })),
+      userVerification: "preferred",
+    });
+
+    // Store challenge in cookie
+    const cookieStore = await cookies();
+    cookieStore.set("authentication-challenge", options.challenge, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 300,
+    });
+
+    return options;
+  }
+
+  /**
+   * WEB AUTH AUTH 2: Verify Authentication Response
+   */
+  static async verifyPasskeyAuthentication(email: string, body: any) {
+    const { 
+      verifyAuthenticationResponse 
+    } = await import("@simplewebauthn/server");
+    const { 
+      getAuthenticatorsByUserId, 
+      updateAuthenticatorCounter 
+    } = await import("../db/d1.repository");
+    const cookieStore = await cookies();
+    const expectedChallenge = cookieStore.get("authentication-challenge")?.value;
+
+    const user = await getUserByEmail(email);
+    if (!user || !expectedChallenge) throw new Error("Invalid request");
+
+    const authenticators = await getAuthenticatorsByUserId(user.id);
+    const auth = authenticators.find(a => a.credentialID === body.id);
+
+    if (!auth) throw new Error("Authenticator not found");
+
+    const verification = await verifyAuthenticationResponse({
+      response: body,
+      expectedChallenge,
+      expectedOrigin: [
+        "https://teamwork.sssspro.com",
+        "http://localhost:3000"
+      ],
+      expectedRPID: process.env.NEXT_PUBLIC_RP_ID || "localhost",
+      authenticator: {
+        credentialID: Buffer.from(auth.credentialID, "base64"),
+        credentialPublicKey: Buffer.from(auth.publicKey, "base64"),
+        counter: auth.counter,
+      },
+    });
+
+    if (verification.verified && verification.authenticationInfo) {
+      await updateAuthenticatorCounter(auth.credentialID, verification.authenticationInfo.newCounter);
+      await this.setSession(user);
+      return { success: true };
+    }
+
+    return { success: false };
+  }
+
   // --- Helpers ---
   private static toHex(buffer: ArrayBuffer | Uint8Array): string {
     return Array.from(new Uint8Array(buffer))

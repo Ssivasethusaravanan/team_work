@@ -16,7 +16,8 @@ import {
   Receipt,
   Users2,
   CircleDollarSign,
-  Loader2
+  Loader2,
+  ShieldCheck
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -51,6 +52,30 @@ export default function DashboardPage() {
       router.refresh();
     } catch (err) {
       console.error("Logout error:", err);
+    }
+  };
+
+  const handleRegisterPasskey = async () => {
+    try {
+      const { startRegistration } = await import("@simplewebauthn/browser");
+
+      // 1. Get options from server (Stealth)
+      const options = await api.post("passkey/reg-options", {});
+
+      // 2. Start biometric prompt
+      const regResp = await startRegistration({ optionsJSON: options });
+
+      // 3. Verify with server (Stealth)
+      const verification = await api.post("passkey/reg-verify", regResp);
+
+      if (verification && verification.success) {
+        alert("Passkey registered! You can now log in using biometrics.");
+      } else {
+        alert("Passkey registration failed.");
+      }
+    } catch (err) {
+      console.error("Passkey Registration error:", err);
+      alert("Registration failed. Your device might not support WebAuthn or you cancelled.");
     }
   };
 
@@ -122,6 +147,14 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
+            <button 
+              onClick={handleRegisterPasskey}
+              title="Add Passkey"
+              className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center gap-2 text-xs font-bold border border-emerald-500/20"
+            >
+              <ShieldCheck size={18} />
+              <span className="hidden lg:inline">Add Passkey</span>
+            </button>
             <button className="p-2 rounded-full hover:bg-white/5 text-neutral-400 relative">
               <Bell size={20} />
               <div className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full" />
@@ -153,10 +186,19 @@ export default function DashboardPage() {
                   Your last activity secure trace: <span className="text-indigo-400 font-mono text-[10px]">{user.lastLogin || 'First Session'}</span>
                 </p>
               </div>
-              <button className="bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-95">
-                <Plus size={20} />
-                New Invoice
-              </button>
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleRegisterPasskey}
+                  className="bg-white/5 hover:bg-white/10 border border-white/10 px-5 py-3 rounded-xl flex items-center gap-2 font-bold transition-all text-emerald-400"
+                >
+                  <ShieldCheck size={20} />
+                  Secure with Passkey
+                </button>
+                <button className="bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-95">
+                  <Plus size={20} />
+                  New Invoice
+                </button>
+              </div>
             </div>
           </div>
 

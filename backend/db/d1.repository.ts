@@ -14,6 +14,15 @@ export interface User {
   lastLogin?: string;
 }
 
+export interface Authenticator {
+  credentialID: string;
+  userId: string;
+  publicKey: string; // Base64
+  counter: number;
+  transports?: string; // JSON string
+  fmt: string;
+}
+
 /**
  * Define the Cloudflare environment interface for type safety.
  */
@@ -97,6 +106,72 @@ export async function updateLastLogin(id: string): Promise<boolean> {
     return true;
   } catch (e) {
     console.error("D1 Repository Error (updateLastLogin):", e);
+    return false;
+  }
+}
+
+/**
+ * GET AUTHENTICATORS: Find all authenticators for a user
+ */
+export async function getAuthenticatorsByUserId(userId: string): Promise<Authenticator[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const results = await db
+      .prepare("SELECT * FROM authenticators WHERE userId = ?")
+      .bind(userId)
+      .all<Authenticator>();
+    return results.results || [];
+  } catch (e) {
+    console.error("D1 Repository Error (getAuthenticators):", e);
+    return [];
+  }
+}
+
+/**
+ * SAVE AUTHENTICATOR: Persist a new biometric device
+ */
+export async function saveAuthenticator(auth: Authenticator): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    await db
+      .prepare(
+        "INSERT INTO authenticators (credentialID, userId, publicKey, counter, transports, fmt) VALUES (?, ?, ?, ?, ?, ?)"
+      )
+      .bind(
+        auth.credentialID,
+        auth.userId,
+        auth.publicKey,
+        auth.counter,
+        auth.transports || null,
+        auth.fmt
+      )
+      .run();
+    return true;
+  } catch (e) {
+    console.error("D1 Repository Error (saveAuthenticator):", e);
+    return false;
+  }
+}
+
+/**
+ * UPDATE COUNTER: Prevent replay attacks
+ */
+export async function updateAuthenticatorCounter(credentialID: string, counter: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    await db
+      .prepare("UPDATE authenticators SET counter = ? WHERE credentialID = ?")
+      .bind(counter, credentialID)
+      .run();
+    return true;
+  } catch (e) {
+    console.error("D1 Repository Error (updateCounter):", e);
     return false;
   }
 }

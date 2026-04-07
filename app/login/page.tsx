@@ -33,6 +33,41 @@ export default function LoginPage() {
     }
   };
 
+  const handlePasskeyLogin = async () => {
+    if (!email) {
+      alert("Please enter your email first to find your Passkey");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { startAuthentication } = await import("@simplewebauthn/browser");
+      
+      // 1. Get options from server (Stealth)
+      const options = await api.post("passkey/auth-options", { email });
+      
+      // 2. Start biometric prompt
+      const asseResp = await startAuthentication({ optionsJSON: options });
+      
+      // 3. Verify with server (Stealth)
+      const verification = await api.post("passkey/auth-verify", { 
+        email, 
+        body: asseResp 
+      });
+
+      if (verification && verification.success) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        alert("Passkey verification failed");
+      }
+    } catch (err) {
+      console.error("Passkey Login error:", err);
+      alert("Passkey login failed. Ensure you have registered a passkey on this device.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/20 via-black to-black">
       {/* Decorative Blur Backgrounds */}
@@ -78,7 +113,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all placeholder:text-neutral-600"
                   placeholder="••••••••"
-                  required
+                  required={!isLoading}
                 />
               </div>
             </div>
@@ -91,18 +126,32 @@ export default function LoginPage() {
               <a href="#" className="text-indigo-400 hover:text-indigo-300 transition-colors">Forgot password?</a>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-            >
-              {isLoading ? "Signing in..." : (
-                <>
-                  Launch Dashboard
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+              >
+                {isLoading ? "Signing in..." : (
+                  <>
+                    Launch Dashboard
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePasskeyLogin}
+                disabled={isLoading}
+                className="w-full border border-white/10 hover:bg-white/5 text-neutral-300 font-semibold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+              >
+                <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center">
+                  <ShieldCheck size={14} className="text-emerald-400" />
+                </div>
+                Sign in with Passkey
+              </button>
+            </div>
           </form>
 
           <footer className="text-center pt-4">
