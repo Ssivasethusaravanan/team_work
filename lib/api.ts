@@ -34,7 +34,7 @@ async function ensureSessionKey(): Promise<CryptoKey> {
   if (!response.ok) throw new Error("Stealth handshake failed");
 
   // 3. Receive Server's Public Key
-  const { serverPublicKey } = await response.json();
+  const { serverPublicKey } = (await response.json()) as { serverPublicKey: string };
   const remotePublic = await importPublicKey(serverPublicKey);
 
   // 4. Derive the Shared Secret
