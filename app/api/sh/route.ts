@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sc_decrypt, sc_encrypt } from "../../../lib/crypto";
+import { cookies } from "next/headers";
+import { sc_decrypt, sc_encrypt, importRawKey } from "../../../lib/crypto";
 import { AuthService } from "../../../backend/services/auth.service";
 
 /**
  * STEALTH GATEWAY: Central entry point for all API traffic.
- * Decrypts in-bound requests, routes them to services, and encrypts responses.
+ * Uses dynamic session-based shared secrets for maximum security.
  */
 export async function POST(request: NextRequest) {
   try {
+    // 1. Retrieve the session secret from HTTP-only cookie
+    const cookieStore = await cookies();
+    const encryptedSecret = cookieStore.get("__sc_secret")?.value;
+
+    if (!encryptedSecret) {
+      // Handsake required
+      return new NextResponse("Stealth session expired", { status: 401 });
+    }
+
+    // 2. Decrypt the secret using Backend Master Key
+    const { rawSecret } = await AuthService.decrypt(encryptedSecret);
+    const sessionKey = await importRawKey(rawSecret);
+
+    // 3. Decrypt the incoming Stealth Payload
     const encryptedBody = await request.text();
-    const { target, payload } = await sc_decrypt(encryptedBody);
+    const { target, payload } = await sc_decrypt(encryptedBody, sessionKey);
 
     let result: any;
 
@@ -17,12 +32,13 @@ export async function POST(request: NextRequest) {
     switch (target) {
       case "auth/login":
         const { email, password } = payload;
-        const user = await AuthService.login(email, password);
-        if (user) {
-          await AuthService.setSession(user);
-          result = { user: { email: user.email, name: user.name } };
+        const userFound = await AuthService.login(email, password);
+        if (userFound) {
+          await AuthService.setSession(userFound);
+          result = { user: { email: userFound.email, name: userFound.name } };
         } else {
-          return new NextResponse(await sc_encrypt({ error: "Invalid credentials" }), { status: 401 });
+          const errBody = await sc_encrypt({ error: "Invalid credentials" }, sessionKey);
+          return new NextResponse(errBody, { status: 401 });
         }
         break;
 
@@ -32,7 +48,8 @@ export async function POST(request: NextRequest) {
           await AuthService.setSession(newUser);
           result = { user: { email: newUser.email, name: newUser.name } };
         } else {
-          return new NextResponse(await sc_encrypt({ error: "Registration failed" }), { status: 400 });
+          const errBody = await sc_encrypt({ error: "Registration failed" }, sessionKey);
+          return new NextResponse(errBody, { status: 400 });
         }
         break;
 
@@ -42,28 +59,30 @@ export async function POST(request: NextRequest) {
         break;
 
       case "user/me":
-        const session = await AuthService.getSession();
-        if (session && session.user) {
-          result = { user: session.user };
+        const sessionPayload = await AuthService.getSession();
+        if (sessionPayload && sessionPayload.user) {
+          result = { user: sessionPayload.user };
         } else {
-          return new NextResponse(await sc_encrypt({ error: "Session not found" }), { status: 401 });
+          const errBody = await sc_encrypt({ error: "Session not found" }, sessionKey);
+          return new NextResponse(errBody, { status: 401 });
         }
         break;
 
       default:
-        return new NextResponse(await sc_encrypt({ error: "Action not permitted" }), { status: 404 });
+        const errBody = await sc_encrypt({ error: "Action not permitted" }, sessionKey);
+        return new NextResponse(errBody, { status: 404 });
     }
 
     // --- Return Encrypted Response ---
-    const encryptedResponse = await sc_encrypt(result);
+    const encryptedResponse = await sc_encrypt(result, sessionKey);
     return new NextResponse(encryptedResponse, {
       status: 200,
       headers: { "Content-Type": "text/plain" },
     });
 
   } catch (error) {
-    console.error("Stealth Gateway Error:", error);
-    const errPayload = await sc_encrypt({ error: "Gateway failure" });
-    return new NextResponse(errPayload, { status: 500 });
+    console.error("Stealth Gateway Error (Pro Mode):", error);
+    // Note: We cannot encryption the response if decryption failed without causing an infinite handshake loop
+    return new NextResponse("Gateway failure", { status: 500 });
   }
 }

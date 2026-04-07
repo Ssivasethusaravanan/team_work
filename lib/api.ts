@@ -1,43 +1,87 @@
-import { sc_decrypt, sc_encrypt } from "./crypto";
+import { 
+  generateHandshakeKeys, 
+  exportPublicKey, 
+  importPublicKey, 
+  deriveSharedSecret, 
+  sc_encrypt, 
+  sc_decrypt 
+} from "./crypto";
 
 /**
- * STEALTH API CLIENT: Transparently encrypts all requests to /api/sh.
+ * STEALTH API CLIENT: Transparently encrypts all requests.
+ * Uses ECDH session-based key exchange for unbreakable security.
  */
+
+let sessionKey: CryptoKey | null = null;
+
+/**
+ * AUTOMATIC HANDSHAKE: Negotiates a unique key for this browser session.
+ */
+async function ensureSessionKey(): Promise<CryptoKey> {
+  if (sessionKey) return sessionKey;
+
+  // 1. Generate Handshake Keys
+  const clientKeyPair = await generateHandshakeKeys();
+  const clientPublicKey = await exportPublicKey(clientKeyPair.publicKey);
+
+  // 2. Transmit Public Key to Server
+  const response = await fetch("/api/sh/handshake", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clientPublicKey }),
+  });
+
+  if (!response.ok) throw new Error("Stealth handshake failed");
+
+  // 3. Receive Server's Public Key
+  const { serverPublicKey } = await response.json();
+  const remotePublic = await importPublicKey(serverPublicKey);
+
+  // 4. Derive the Shared Secret
+  sessionKey = await deriveSharedSecret(clientKeyPair.privateKey, remotePublic);
+  return sessionKey;
+}
+
 export const api = {
   /**
    * Performs a secure POST request.
-   * @param target Internal action (e.g., 'auth/login')
-   * @param body Payload to encrypt
    */
   async post(target: string, body: any) {
-    // 1. Prepare Stealth Payload
+    // A. Ensure we have an active session key
+    const key = await ensureSessionKey();
+
+    // B. Prepare Stealth Payload
     const encryptedBody = await sc_encrypt({
       target,
       payload: body,
       timestamp: Date.now(),
-    });
+    }, key);
 
-    // 2. Transmit to Gateway
+    // C. Transmit to Gateway
     const response = await fetch("/api/sh", {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: encryptedBody,
     });
 
+    if (response.status === 401) {
+      // Session expired or handshake needed again
+      sessionKey = null;
+      throw new Error("Stealth session expired");
+    }
+
     if (!response.ok) {
       throw new Error(`Stealth response error: ${response.status}`);
     }
 
-    // 3. Receive and Decrypt
+    // D. Receive and Decrypt
     const encryptedResult = await response.text();
-    const result = await sc_decrypt(encryptedResult);
+    const result = await sc_decrypt(encryptedResult, key);
 
     return result;
   },
 
   async get(target: string) {
-    // For GETs, we still use the gateway but with query params or encrypted headers
-    // but typically sensitive GETs are also POSTed in a BFF to mask the action.
     return this.post(target, {});
   }
 };
