@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AuthService } from "./backend/services/auth.service";
+import { SessionService } from "./backend/services/session.service";
 
 export async function middleware(request: NextRequest) {
   const session = request.cookies.get("session")?.value;
@@ -12,8 +12,8 @@ export async function middleware(request: NextRequest) {
     }
     
     try {
-      // Use Backend Service for verification
-      await AuthService.decrypt(session);
+      // Use Session Service for verification (Edge compatible)
+      await SessionService.decrypt(session);
       return NextResponse.next();
     } catch (e) {
       // Invalid session -> clear it and go to login
@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
   // 2. PROTECT AUTH FLOW: Redirect to dashboard if already logged in
   if (pathname.startsWith("/login") && session) {
     try {
-      await AuthService.decrypt(session);
+      await SessionService.decrypt(session);
       return NextResponse.redirect(new URL("/dashboard", request.url));
     } catch (e) {
       // Invalid session -> allow login page to show

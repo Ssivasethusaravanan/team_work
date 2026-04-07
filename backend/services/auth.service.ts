@@ -1,11 +1,6 @@
-import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { getUserByEmail, insertUser, User } from "../db/d1.repository";
-
-// The secret stays on the server, invisible to the client
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback_secret_for_local_dev"
-);
+import { SessionService } from "./session.service";
 
 /**
  * AUTH SERVICE: High-level business logic for user authentication.
@@ -16,21 +11,14 @@ export class AuthService {
    * ENCRYPT: SIGN A JWT TOKEN
    */
   static async encrypt(payload: any): Promise<string> {
-    return await new SignJWT(payload)
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("2h")
-      .sign(secret);
+    return await SessionService.encrypt(payload);
   }
 
   /**
    * DECRYPT: VERIFY A JWT TOKEN
    */
   static async decrypt(input: string): Promise<any> {
-    const { payload } = await jwtVerify(input, secret, {
-      algorithms: ["HS256"],
-    });
-    return payload;
+    return await SessionService.decrypt(input);
   }
 
   /**
@@ -172,13 +160,12 @@ export class AuthService {
     const options = await generateRegistrationOptions({
       rpName: "ModelPro SaaS",
       rpID: process.env.NEXT_PUBLIC_RP_ID || "localhost",
-      userID: user.id,
+      userID: new TextEncoder().encode(user.id),
       userName: user.email,
       userDisplayName: user.name,
       attestationType: "none",
       excludeCredentials: authenticators.map(auth => ({
         id: auth.credentialID,
-        type: "public-key",
         transports: auth.transports ? JSON.parse(auth.transports) : undefined,
       })),
       authenticatorSelection: {
@@ -223,14 +210,15 @@ export class AuthService {
     });
 
     if (verification.verified && verification.registrationInfo) {
-      const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+      const { credential, fmt } = verification.registrationInfo;
 
       await saveAuthenticator({
-        credentialID: Buffer.from(credentialID).toString("base64"),
+        credentialID: credential.id,
         userId: user.id,
-        publicKey: Buffer.from(credentialPublicKey).toString("base64"),
-        counter,
-        fmt: verification.registrationInfo.fmt,
+        publicKey: Buffer.from(credential.publicKey).toString("base64"),
+        counter: credential.counter,
+        fmt,
+        transports: JSON.stringify(credential.transports || []),
       });
 
       return { success: true };
@@ -257,7 +245,6 @@ export class AuthService {
       rpID: process.env.NEXT_PUBLIC_RP_ID || "localhost",
       allowCredentials: authenticators.map(auth => ({
         id: auth.credentialID,
-        type: "public-key",
         transports: auth.transports ? JSON.parse(auth.transports) : undefined,
       })),
       userVerification: "preferred",
@@ -304,10 +291,11 @@ export class AuthService {
         "http://localhost:3000"
       ],
       expectedRPID: process.env.NEXT_PUBLIC_RP_ID || "localhost",
-      authenticator: {
-        credentialID: Buffer.from(auth.credentialID, "base64"),
-        credentialPublicKey: Buffer.from(auth.publicKey, "base64"),
+      credential: {
+        id: auth.credentialID,
+        publicKey: Buffer.from(auth.publicKey, "base64"),
         counter: auth.counter,
+        transports: auth.transports ? JSON.parse(auth.transports) : undefined,
       },
     });
 

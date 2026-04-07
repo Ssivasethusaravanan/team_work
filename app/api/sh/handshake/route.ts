@@ -15,7 +15,7 @@ import { AuthService } from "../../../../backend/services/auth.service";
  */
 export async function POST(request: NextRequest) {
   try {
-    const { clientPublicKey } = await request.json();
+    const { clientPublicKey } = await request.json() as { clientPublicKey?: string };
     if (!clientPublicKey) return NextResponse.json({ error: "Missing client key" }, { status: 400 });
 
     // 1. Import Client's Public Key
